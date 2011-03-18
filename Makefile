@@ -1,13 +1,13 @@
-HOSTCC	= gcc
+HOSTCC  = gcc
 
-AS	= avr-as
-CC	= avr-gcc
-OBJCOPY	= avr-objcopy
-MCU	= atmega128
+AS      = avr-as
+CC      = avr-gcc
+OBJCOPY = avr-objcopy
+MCU     = atmega128
 
-CFLAGS	= -g3 -mmcu=$(MCU) -Os -DF_CPU=8000000 -W -Wall
-ASFLAGS	= $(CFLAGS)
-LDFLAGS	= -mmcu=$(MCU)
+CFLAGS  = -g3 -mmcu=$(MCU) -Os -DF_CPU=8000000 -W -Wall
+ASFLAGS = $(CFLAGS)
+LDFLAGS = -mmcu=$(MCU)
 
 SAMPLES_SRC = $(wildcard data/*.wav)
 #samples/www.wav samples/ww1.wav
@@ -15,7 +15,7 @@ SAMPLES=$(SAMPLES_SRC:.wav=.h)
 
 all: disconnect.hex
 
-disconnect.elf: phone.o
+disconnect.elf: timer.o phone.o
 	$(CC) $(LDFLAGS) $^ -Wl,-Map=$@.map -o $@
 
 convert: convert.c
@@ -32,9 +32,9 @@ clean:
 	rm -f $(SAMPLES)
 
 %.hex: %.elf
-	$(OBJCOPY) -j .text -j .data -O ihex $^ $@ 
+	$(OBJCOPY) -j .text -j .data -O ihex $^ $@
 %.bin: %.elf
-	$(OBJCOPY) -j .text -j .data -O binary $^ $@ 
+	$(OBJCOPY) -j .text -j .data -O binary $^ $@
 %.s: %.c
 	$(CC) $(CFLAGS) -S -g0 $^ -o $@
 %.e: %.c
