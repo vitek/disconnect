@@ -15,7 +15,7 @@ SAMPLES=$(SAMPLES_SRC:.wav=.h)
 
 all: disconnect.hex
 
-disconnect.elf: timer.o phone.o
+disconnect.elf: timer.o at45.o phone.o
 	$(CC) $(LDFLAGS) $^ -Wl,-Map=$@.map -o $@
 
 convert: convert.c
