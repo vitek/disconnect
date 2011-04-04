@@ -19,6 +19,6 @@ void at45_spi_write(unsigned char b)
         ;
 }
 
-char at45_init();
+int at45_init();
 
 #endif /* DISCONNECT_AT45_H */

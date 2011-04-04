@@ -1,3 +1,5 @@
+#include <util/delay.h>
+
 #include "at45.h"
 
 #define OP_READ_STATUS          0xd7
@@ -6,13 +8,13 @@
 static inline
 void at45_select()
 {
-    PORTB &= ~(1 << PB6);
+    PORTE &= ~(1 << PE5);
 }
 
 static inline
 void at45_deselect()
 {
-    PORTB |= (1 << PB6);
+    PORTE |= (1 << PE5);
 }
 
 static inline
@@ -25,14 +27,26 @@ unsigned char at45_status_read()
     at45_spi_write(0);
     b = at45_spi_read();
     at45_deselect();
+
     return b;
 }
 
-char at45_init()
+int at45_init()
 {
-    // TODO: initialize SPI here and pins here
+    unsigned char status;
 
-    switch (at45_status_read()) {
+    // MOSI and CLK are outputs
+    DDRB |= (1 << PB2) | (1 << PB1) | (1 << PB0);
+    DDRB &= ~(1 << PB3);
+    DDRE |= (1 << PE5); /* nCS */
+
+    SPCR = (1 << SPE) | (1 << DORD) | (1 << MSTR) | (1 << CPOL) | (1 << CPOL);
+
+    at45_deselect();
+
+    status = at45_status_read();
+
+    switch (status & 0x3c) {
     case 0x38: /* AT45DB642x */
     case 0x3c:
         break;
