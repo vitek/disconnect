@@ -6,6 +6,7 @@
 #include <avr/io.h>
 
 void uart0_init(unsigned int baud);
+void uart0_reset();
 
 static inline
 void uart0_putc(unsigned char c)

@@ -17,3 +17,10 @@ void uart0_init(unsigned int baud)
     UCSR0C = (unsigned char)
         (1 << UCSZ1) | (1 << UCSZ0);
 }
+
+void uart_reset()
+{
+    /* disable uart */
+    UCSR0B = 0;
+    UCSR0A = 0;
+}
