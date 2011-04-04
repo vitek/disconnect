@@ -4,8 +4,9 @@ AS      = avr-as
 CC      = avr-gcc
 OBJCOPY = avr-objcopy
 MCU     = atmega128
+CPUFREQ = 8000000l
 
-CFLAGS  = -g3 -mmcu=$(MCU) -Os -DF_CPU=8000000 -W -Wall
+CFLAGS  = -g3 -mmcu=$(MCU) -Os -DF_CPU=$(CPUFREQ) -W -Wall
 ASFLAGS = $(CFLAGS)
 LDFLAGS = -mmcu=$(MCU)
 
@@ -15,7 +16,7 @@ SAMPLES=$(SAMPLES_SRC:.wav=.h)
 
 all: disconnect.hex
 
-disconnect.elf: timer.o at45.o uart.o phone.o crc16.o
+disconnect.elf: timer.o at45.o uart.o main.o crc16.o
 	$(CC) $(LDFLAGS) $^ -Wl,-Map=$@.map -o $@
 
 convert: convert.c
