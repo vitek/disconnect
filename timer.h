@@ -26,6 +26,11 @@ void timer_init();
 
 unsigned char timer_read_events();
 
+/**
+ * Read single event
+ */
+unsigned char timer_read_event(timer_id_t id);
+
 int timer_start_periodic(timer_id_t id, tick_t ival);
 int timer_start_oneshot(timer_id_t id, tick_t ival);
 void timer_stop(timer_id_t id);

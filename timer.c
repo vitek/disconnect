@@ -111,6 +111,20 @@ unsigned char timer_read_events()
     return events;
 }
 
+unsigned char timer_read_event(timer_id_t id)
+{
+    unsigned char flags;
+    unsigned char event;
+
+    local_irq_save(flags);
+    event = timer_events & (1 << id);
+    timer_events &= ~(1 << id);
+    local_irq_restore(flags);
+
+    return event;
+}
+
+
 SIGNAL(SIG_OUTPUT_COMPARE0)
 {
     int i;
