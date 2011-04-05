@@ -6,6 +6,7 @@
 #include "timer.h"
 #include "uart.h"
 #include "at45.h"
+#include "loader.h"
 
 static inline
 void power_down()
@@ -45,11 +46,11 @@ int main()
     timer_enable();
 
 
-    uart0_init(UART_BAUD(115200));
-
     unsigned short oldsecs = 0;
 
     sei();
+
+    uart_loader();
 
     while (1) {
         power_down();

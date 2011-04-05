@@ -17,7 +17,7 @@ SAMPLES=$(SAMPLES_SRC:.wav=.h)
 
 all: disconnect.hex
 
-disconnect.elf: timer.o at45.o uart.o main.o crc16.o
+disconnect.elf: timer.o at45.o uart.o loader.o main.o crc16.o
 	$(CC) $(LDFLAGS) $^ -Wl,-Map=$@.map -o $@
 
 convert: convert.c
