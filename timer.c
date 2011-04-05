@@ -29,6 +29,7 @@ void timer_init(void)
     unsigned char flags;
 
     local_irq_save(flags);
+    timer_stop_all();
     ticks = 0;
     ASSR = 0;
     OCR0 = OCR0_VALUE;
