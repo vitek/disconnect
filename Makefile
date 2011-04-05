@@ -4,7 +4,7 @@ AS      = avr-as
 CC      = avr-gcc
 OBJCOPY = avr-objcopy
 MCU     = atmega128
-CPUFREQ = 8000000l
+CPUFREQ = 1000000l
 
 CFLAGS  = -g3 -mmcu=$(MCU) -Os -DF_CPU=$(CPUFREQ) -W -Wall
 ASFLAGS = $(CFLAGS)
