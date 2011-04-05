@@ -18,7 +18,7 @@ void uart0_init(unsigned int baud)
         (1 << UCSZ1) | (1 << UCSZ0);
 }
 
-void uart_reset()
+void uart0_reset()
 {
     /* disable uart */
     UCSR0B = 0;
