@@ -5,8 +5,9 @@ CC      = avr-gcc
 OBJCOPY = avr-objcopy
 MCU     = atmega128
 CPUFREQ = 1000000l
+TIMER_HZ= 100
 
-CFLAGS  = -g3 -mmcu=$(MCU) -Os -DF_CPU=$(CPUFREQ) -W -Wall
+CFLAGS  = -g3 -mmcu=$(MCU) -Os -DF_CPU=$(CPUFREQ) -DHZ=$(TIMER_HZ) -W -Wall
 ASFLAGS = $(CFLAGS)
 LDFLAGS = -mmcu=$(MCU)
 
