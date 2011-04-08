@@ -177,6 +177,78 @@ static void uart_loader_test()
     at45_read_stop();
 }
 
+#define TIMER_RING_TIMEOUT 2
+
+static void uart_loader_ring()
+{
+    int i = 0;
+
+
+    for (i = 0; i < 2; i++) {
+        timer_start_oneshot(TIMER_RING_TIMEOUT, HZ + HZ / 2);
+        while (!timer_read_event(TIMER_RING_TIMEOUT)) {
+            PORTG |= (1 << PG1);
+            _delay_us(30);
+            PORTG &= ~(1 << PG1);
+            _delay_us(30);
+        }
+
+        timer_start_oneshot(TIMER_RING_TIMEOUT, HZ);
+        while (!timer_read_event(TIMER_RING_TIMEOUT)) {
+            /* silence */
+        }
+    }
+
+    uart0_puts("ok\r\n");
+}
+
+#define BEEP_VOLUME 20
+
+static void uart_loader_zoom()
+{
+    timer_start_oneshot(TIMER_RING_TIMEOUT, HZ * 4);
+
+    while (!timer_read_event(TIMER_RING_TIMEOUT)) {
+        int i;
+        for (i = 0; i < 100; i++) {
+            PORTC = 0x80 - BEEP_VOLUME;
+            _delay_ms(1);
+            PORTC = 0x80;
+            _delay_ms(1);
+            PORTC = 0x80 + BEEP_VOLUME;
+            _delay_ms(1);
+            PORTC = 0x80;
+            _delay_ms(1);
+        }
+    }
+
+    uart0_puts("ok\r\n");
+}
+
+static void uart_loader_busy()
+{
+    int i;
+
+    timer_start_oneshot(TIMER_RING_TIMEOUT, HZ * 4);
+
+    while (!timer_read_event(TIMER_RING_TIMEOUT)) {
+        for (i = 0; i < 100; i++) {
+            PORTC = 0x80 - BEEP_VOLUME;
+            _delay_ms(1);
+            PORTC = 0x80;
+            _delay_ms(1);
+            PORTC = 0x80 + BEEP_VOLUME;
+            _delay_ms(1);
+            PORTC = 0x80;
+            _delay_ms(1);
+        }
+
+        _delay_ms(200);
+    }
+
+    uart0_puts("ok\r\n");
+}
+
 static int uart_loader_handle(const char *cmd)
 {
     if (!strcmp(cmd, "hi")) {
@@ -188,6 +260,12 @@ static int uart_loader_handle(const char *cmd)
         uart_loader_read_page(cmd + 5);
     } else if (!strncmp(cmd, "write ", 6)) {
         uart_loader_write_page(cmd + 6);
+    } else if (!strcmp(cmd, "ring")) {
+        uart_loader_ring();
+    } else if (!strcmp(cmd, "zoom")) {
+        uart_loader_zoom();
+    } else if (!strcmp(cmd, "busy")) {
+        uart_loader_busy();
     } else if (!strcmp(cmd, "test")) {
         uart_loader_test();
     } else {
