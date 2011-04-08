@@ -5,7 +5,7 @@ CC      = avr-gcc
 OBJCOPY = avr-objcopy
 MCU     = atmega128
 CPUFREQ = 1000000l
-TIMER_HZ= 100
+TIMER_HZ= 20
 
 CFLAGS  = -g3 -mmcu=$(MCU) -Os -DF_CPU=$(CPUFREQ) -DHZ=$(TIMER_HZ) -W -Wall
 ASFLAGS = $(CFLAGS)
@@ -43,3 +43,6 @@ clean:
 	$(CC) -E $(CFLAGS) -S -g0 $^ -o $@
 %.h: %.wav
 	./convert sample < $^ > $@
+
+%.8wav: %.wav
+	sox $< -c 1 --rate=12500 -1 $@
