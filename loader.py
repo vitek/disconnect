@@ -1,6 +1,7 @@
 import serial
 import time
 import wave
+import os
 
 from crc16 import crc16
 
@@ -38,11 +39,10 @@ class Loader(object):
 
     def read_page(self, page):
         self.fp.write('read %x\r\n' % page)
-        reply = self.fp.readline()
-        if reply != 'ok\r\n':
-            raise LoaderError, "got %r instead of OK" % reply
-        reply = self.fp.read(FLASH_PAGE_SIZE + 4)
-        if len(reply) != FLASH_PAGE_SIZE + 4:
+        self.wait()
+
+        reply = self.fp.read(FLASH_PAGE_SIZE + 6)
+        if len(reply) != FLASH_PAGE_SIZE + 6:
             raise LoaderError, \
                   "Reply to short for read command, length = %d" % len(reply)
         data = reply[:FLASH_PAGE_SIZE]
@@ -60,7 +60,15 @@ class Loader(object):
         self.fp.write('write %x %x %x\r\n' % (page, len(data), crc))
         self.fp.write(data)
         self.fp.flush()
+        self.wait()
 
+    def custom(self, cmd):
+        self.fp.write("%s\r\n" % cmd)
+        self.fp.flush()
+
+    def wait(self, timeout=2):
+        """Wait for okay reply"""
+        self.fp.setTimeout(timeout)
         reply = self.fp.readline()
         if reply != 'ok\r\n':
             raise LoaderError, "got %r instead of OK" % reply
@@ -86,7 +94,7 @@ class WavFile(object):
                 break
             self.frames += data
 
-sample = WavFile('standby.wav')
+#sample = WavFile('standby.wav')
 
 #raise SystemExit
 
@@ -95,17 +103,46 @@ version = loader.version()
 
 print 'DISCONNECT device version %r found' % version
 
+
+def test_hardware(loader):
+    print 'Writing to flash'
+    data = os.urandom(FLASH_PAGE_SIZE)
+    loader.write_page(666, data)
+
+    print 'Reading from flash'
+    rdata = loader.read_page(666)
+
+    if data != rdata:
+        raise LoaderError, "data mismatch"
+
+    print 'Testing beeper'
+    loader.custom('zoom')
+    loader.wait(5)
+
+    print 'Testing busy beeper'
+    loader.custom('busy')
+    loader.wait(5)
+
+    print 'Testing ring'
+    loader.custom('ring')
+    loader.wait(8)
+
+test_hardware(loader)
+
+
 #PAGE = 'hello, world!!'
 #PAGE = PAGE + (FLASH_PAGE_SIZE - len(PAGE)) * 'X'
 #
 #loader.write_page(0, PAGE)
 #print loader.read_page(0)
 
-data = sample.frames
-pageno = 0
-while data:
-    page = data[:FLASH_PAGE_SIZE]
-    data = data[FLASH_PAGE_SIZE:]
-    print 'writting page', pageno
-    loader.write_page(pageno, page)
-    pageno += 1
+## data = sample.frames
+## pageno = 0
+## while data:
+##     page = data[:FLASH_PAGE_SIZE]
+##     data = data[FLASH_PAGE_SIZE:]
+##     print 'writting page', pageno
+##     loader.write_page(pageno, page)
+##     pageno += 1
+
+
