@@ -151,6 +151,32 @@ usage:
     return -1;
 }
 
+static void uart_loader_test()
+{
+    unsigned int page;
+    unsigned int pos;
+
+//    SPSR |= 1 << SPI2X;
+//    SPCR = (SPCR & ~(3 << SPR0)) | (1 << SPR0);
+
+    at45_read_start(0);
+
+    cli();
+    for (page = 0; page < 1000; page++) {
+        for (pos = 0; pos < AT45_PAGE_SIZE; pos++) {
+            unsigned char c = at45_spi_read();
+            PORTC = c;
+        }
+    }
+    sei();
+
+
+    SPSR &= ~(1 << SPI2X);
+    SPCR = (SPCR & ~(3 << SPR0));
+
+    at45_read_stop();
+}
+
 static int uart_loader_handle(const char *cmd)
 {
     if (!strcmp(cmd, "hi")) {
@@ -162,6 +188,8 @@ static int uart_loader_handle(const char *cmd)
         uart_loader_read_page(cmd + 5);
     } else if (!strncmp(cmd, "write ", 6)) {
         uart_loader_write_page(cmd + 6);
+    } else if (!strcmp(cmd, "test")) {
+        uart_loader_test();
     } else {
         uart0_puts("ERROR: unknown command\r\n");
     }
