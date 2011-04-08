@@ -99,55 +99,73 @@ void timer_stop_all()
         timer_stop(i);
 }
 
-unsigned char timer_read_events()
+static inline
+unsigned char timer_update(timer_t *timer, tick_t ticks)
 {
-    unsigned char events;
+    if (timer->mode == TIMER_MODE_NONE)
+        return 0;
+
+    if (tick_sub(ticks, timer->expire) >= 0) {
+        if (timer->mode == TIMER_MODE_ONESHOT)
+            timer->mode = TIMER_MODE_NONE;
+        else
+            timer->expire = ticks + timer->ival;
+        return 1;
+    }
+
+    return 0;
+}
+
+
+static
+void timers_update()
+{
+    int i;
+    tick_t cur_ticks;
     unsigned char flags;
 
     local_irq_save(flags);
+    cur_ticks = ticks;
+    local_irq_restore(flags);
+
+    for (i = 0; i < TIMER_ID_MAX; i++) {
+        if (timer_update(&timers[i], ticks))
+            timer_events |= 1 << i;
+    }
+}
+
+unsigned char timer_read_events()
+{
+    unsigned char events;
+
+    timers_update();
     events = timer_events;
     timer_events = 0;
-    local_irq_restore(flags);
+
     return events;
 }
 
 unsigned char timer_read_event(timer_id_t id)
 {
     unsigned char flags;
-    unsigned char event;
+    tick_t cur;
 
     local_irq_save(flags);
-    event = timer_events & (1 << id);
-    timer_events &= ~(1 << id);
+    cur = ticks;
     local_irq_restore(flags);
 
-    return event;
+    if (timer_update(&timers[id], cur))
+        return 1;
+    return 0;
 }
-
 
 SIGNAL(SIG_OUTPUT_COMPARE0)
 {
-    int i;
-
     ticks++;
     tick_second++;
 
     if (tick_second >= HZ) {
         seconds++;
         tick_second = 0;
-    }
-
-    for (i = 0; i < TIMER_ID_MAX; i++) {
-        if (timers[i].mode == TIMER_MODE_NONE)
-            continue;
-
-        if (tick_sub(ticks, timers[i].expire) >= 0) {
-            timer_events |= 1 << i;
-
-            if (timers[i].mode == TIMER_MODE_ONESHOT)
-                timers[i].mode = TIMER_MODE_NONE;
-            else
-                timers[i].expire = ticks + timers[i].ival;
-        }
     }
 }
