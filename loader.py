@@ -1,6 +1,9 @@
 import serial
-from crc16 import crc16
 import time
+import wave
+
+from crc16 import crc16
+
 
 FLASH_PAGE_SIZE = 1056
 FLASH_PAGES = 8192
@@ -62,13 +65,47 @@ class Loader(object):
         if reply != 'ok\r\n':
             raise LoaderError, "got %r instead of OK" % reply
 
+
+class SampleError(Exception):
+    pass
+
+
+class WavFile(object):
+    def __init__(self, fname):
+        fp = wave.open(fname, 'r')
+        if fp.getnchannels() != 1:
+            raise SampleError, "only mono samples are supported"
+        if fp.getsampwidth() != 1:
+            raise SampleError, "only 8-bit samples are supported"
+
+        self.frames = ''
+
+        while True:
+            data = fp.readframes(1024)
+            if not data:
+                break
+            self.frames += data
+
+sample = WavFile('standby.wav')
+
+#raise SystemExit
+
 loader = Loader('/dev/ttyUSB0')
 version = loader.version()
 
 print 'DISCONNECT device version %r found' % version
 
-PAGE = 'hello, world!!'
-PAGE = PAGE + (FLASH_PAGE_SIZE - len(PAGE)) * 'X'
+#PAGE = 'hello, world!!'
+#PAGE = PAGE + (FLASH_PAGE_SIZE - len(PAGE)) * 'X'
+#
+#loader.write_page(0, PAGE)
+#print loader.read_page(0)
 
-loader.write_page(0, PAGE)
-print loader.read_page(0)
+data = sample.frames
+pageno = 0
+while data:
+    page = data[:FLASH_PAGE_SIZE]
+    data = data[FLASH_PAGE_SIZE:]
+    print 'writting page', pageno
+    loader.write_page(pageno, page)
+    pageno += 1
