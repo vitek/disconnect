@@ -1,29 +1,17 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <avr/sleep.h>
 #include <util/delay.h>
 
 #include "timer.h"
 #include "uart.h"
 #include "at45.h"
 #include "loader.h"
+#include "power.h"
 
-static inline
-void power_down()
-{
-    cli();
 
-    /* switch off leds */
-    PORTE |= (1 << PE2);
-    PORTG |= (1 << PG1);
 
-    /* switch off speaker power */
-    PORTE |= (1 << PE7);
 
-    set_sleep_mode(SLEEP_MODE_IDLE);
-    sei();
-    sleep_mode();
-}
+
 
 int main()
 {
@@ -32,7 +20,7 @@ int main()
     //DDRB = (1 << PB6);
     DDRG = (1 << PG1) ; /* ring */
     DDRE = ((1 << PE2) | /* LED */
-            (1 << PE7)); /* Speaker Power */
+            (1 << PE7)); /* Speaker and Flash Power */
     DDRB &= ~((1 << PB4) | /* COM on */
               (1 << PB5)); /* HANG */
 
