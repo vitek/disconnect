@@ -1,10 +1,14 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/delay.h>
 
 #include <string.h>
 
 #include "timer.h"
 #include "uart.h"
+#include "at45.h"
+#include "power.h"
+#include "crc16.h"
 
 #define TIMER_UART_TIMEOUT 0
 
@@ -16,6 +20,137 @@
   < OK|ERR
  */
 
+static inline const char *parse_hex(const char *args,
+                                    unsigned int *dest)
+{
+    unsigned int result = 0;
+    int len;
+
+    while (*args == ' ' ||
+           *args == '\t')
+        args++;
+
+    if (*args == '\0')
+        return NULL;
+
+    for (len = 0; ; len++) {
+        unsigned char c = *args;
+
+        if (c == '\0' || c == ' ')
+            break;
+
+        if (len >= 4)
+            return NULL;
+
+        if (c >= '0' && c <= '9')
+            result = (result << 4) | (c - '0');
+        else if (c >= 'a' && c <= 'f')
+            result = (result << 4) | (c - 'a' + 10);
+        else if (c >= 'A' && c <= 'F')
+            result = (result << 4) | (c - 'A' + 10);
+        else
+            return NULL;
+
+        args++;
+    }
+
+    if (len) {
+        *dest = result;
+        return args;
+    }
+    return NULL;
+}
+
+
+static int uart_loader_read_page(const char *args)
+{
+    unsigned int page;
+    uint16_t crc = 0;
+    int off;
+
+    if (NULL == parse_hex(args, &page)) {
+        uart0_puts("ERROR: read <16bit hex>\r\n");
+        return -1;
+    }
+
+    uart0_puts("ok\r\n");
+
+    if (at45_read_start(page)) {
+        uart0_puts("ERROR: bad page\r\n");
+        return -1;
+    }
+
+    for (off = 0; off < AT45_PAGE_SIZE; off++) {
+        unsigned char c;
+
+        c = at45_spi_read();
+        crc = crc16_byte(crc, c);
+        uart0_putc(c);
+    }
+
+    at45_read_stop();
+
+    uart0_print_hex(crc >> 8);
+    uart0_print_hex(crc & 0xff);
+    uart0_puts("\r\n");
+
+    return 0;
+}
+
+static int uart_loader_write_page(const char *args)
+{
+    unsigned int page;
+    unsigned int length;
+    unsigned int crc;
+    uint16_t crc2 = 0;
+    unsigned int i;
+
+    if (NULL == (args = parse_hex(args, &page))) {
+        goto usage;
+    }
+
+    if (NULL == (args = parse_hex(args, &length))) {
+        goto usage;
+    }
+
+    if (NULL == (args = parse_hex(args, &crc))) {
+        goto usage;
+    }
+
+    if (at45_write_page_start(page)) {
+        uart0_puts("ERROR: at45_write_page_start() failed\r\n");
+        return -1;
+    }
+
+    for (i = 0; i < length; i++) {
+        unsigned char c;
+
+        while (!uart0_getc(&c)) {
+            /* TODO: handle timeout */
+        }
+
+        at45_spi_write(c);
+        crc2 = crc16_byte(crc2, c);
+    }
+
+    if (at45_write_page_stop()) {
+        uart0_puts("ERROR: at45_write_page_stop() failed\r\n");
+        return -1;
+    }
+
+    if (crc != crc2) {
+        uart0_print_hex16(crc2);
+        uart0_puts("ERROR: crc16 error\r\n");
+        return -1;
+    }
+
+    uart0_puts("ok\r\n");
+    return 0;
+usage:
+    uart0_puts("ERROR: write <page> <len> <crc16>\r\n");
+    return -1;
+}
+
 static int uart_loader_handle(const char *cmd)
 {
     if (!strcmp(cmd, "hi")) {
@@ -23,6 +158,12 @@ static int uart_loader_handle(const char *cmd)
     } else if (!strcmp(cmd, "go")) {
         uart0_puts("entering normal mode\r\n");
         return 1;
+    } else if (!strncmp(cmd, "read ", 5)) {
+        uart_loader_read_page(cmd + 5);
+    } else if (!strncmp(cmd, "write ", 6)) {
+        uart_loader_write_page(cmd + 6);
+    } else {
+        uart0_puts("ERROR: unknown command\r\n");
     }
 
     return 0;
@@ -31,12 +172,24 @@ static int uart_loader_handle(const char *cmd)
 void uart_loader()
 {
     unsigned int pos = 0;
-    char cmd[16];
+    char cmd[32];
+
+    main_power_on();
+
+    _delay_ms(1);
 
     timer_init();
-    uart0_init(UART_BAUD(115200));
+    uart0_init(UART_BAUD(57600));
+
+    if (at45_init()) {
+        uart0_puts("AT45 init failed\r\n");
+        while (1)
+            power_down();
+    }
 
     sei();
+
+    uart0_puts("alive\r\n");
 
     while (1) {
         unsigned char c;
@@ -47,14 +200,14 @@ void uart_loader()
         if (uart0_getc(&c)) {
             timer_start_oneshot(TIMER_UART_TIMEOUT, HZ / 2);
 
-            if (c == '\n' || c == '\r') {
+            if (c == '\n') {
                 cmd[pos] = 0;
                 if (pos) {
                     pos = 0;
                     if (uart_loader_handle(cmd))
                         break;
                 }
-            } else {
+            } else if (c != '\r') {
                 cmd[pos++] = c;
                 if (pos >= sizeof(cmd))
                     pos = 0;
