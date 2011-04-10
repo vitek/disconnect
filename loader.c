@@ -249,6 +249,22 @@ static void uart_loader_busy()
     uart0_puts("ok\r\n");
 }
 
+static void uart_loader_saw()
+{
+    timer_start_oneshot(TIMER_RING_TIMEOUT, HZ * 4);
+
+    while (!timer_read_event(TIMER_RING_TIMEOUT)) {
+        int i;
+
+        for (i = 0; i < 256; i++) {
+            PORTC = i;
+            _delay_us(1);
+        }
+    }
+
+    uart0_puts("ok\r\n");
+}
+
 static int uart_loader_handle(const char *cmd)
 {
     if (!strcmp(cmd, "hi")) {
@@ -266,6 +282,8 @@ static int uart_loader_handle(const char *cmd)
         uart_loader_zoom();
     } else if (!strcmp(cmd, "busy")) {
         uart_loader_busy();
+    } else if (!strcmp(cmd, "saw")) {
+        uart_loader_saw();
     } else if (!strcmp(cmd, "test")) {
         uart_loader_test();
     } else {

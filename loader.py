@@ -103,7 +103,6 @@ version = loader.version()
 
 print 'DISCONNECT device version %r found' % version
 
-
 def test_hardware(loader):
     print 'Writing to flash'
     data = os.urandom(FLASH_PAGE_SIZE)
@@ -114,6 +113,10 @@ def test_hardware(loader):
 
     if data != rdata:
         raise LoaderError, "data mismatch"
+
+    print 'Testing speaker with "saw"'
+    loader.custom('saw')
+    loader.wait(4)
 
     print 'Testing beeper'
     loader.custom('zoom')
