@@ -95,13 +95,14 @@ class WavFile(object):
                 break
             self.frames += data
 
+
 def test_hardware(loader):
     print 'Writing to flash'
     data = os.urandom(FLASH_PAGE_SIZE)
-    loader.write_page(666, data)
+    loader.write_page(FLASH_PAGES - 1, data)
 
     print 'Reading from flash'
-    rdata = loader.read_page(666)
+    rdata = loader.read_page(FLASH_PAGES - 1)
 
     if data != rdata:
         raise LoaderError, "data mismatch"
