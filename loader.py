@@ -1,7 +1,8 @@
-import serial
-import time
-import wave
 import os
+import time
+
+import serial
+import wave
 
 from crc16 import crc16
 
@@ -94,15 +95,6 @@ class WavFile(object):
                 break
             self.frames += data
 
-#sample = WavFile('standby.wav')
-
-#raise SystemExit
-
-loader = Loader('/dev/ttyUSB0')
-version = loader.version()
-
-print 'DISCONNECT device version %r found' % version
-
 def test_hardware(loader):
     print 'Writing to flash'
     data = os.urandom(FLASH_PAGE_SIZE)
@@ -116,7 +108,7 @@ def test_hardware(loader):
 
     print 'Testing speaker with "saw"'
     loader.custom('saw')
-    loader.wait(4)
+    loader.wait(5)
 
     print 'Testing beeper'
     loader.custom('zoom')
@@ -130,22 +122,23 @@ def test_hardware(loader):
     loader.custom('ring')
     loader.wait(8)
 
-test_hardware(loader)
 
+if __name__ == "__main__":
+    from optparse import OptionParser
 
-#PAGE = 'hello, world!!'
-#PAGE = PAGE + (FLASH_PAGE_SIZE - len(PAGE)) * 'X'
-#
-#loader.write_page(0, PAGE)
-#print loader.read_page(0)
+    parser = OptionParser()
+    parser.add_option("-d", "--device",
+                      dest="device", default="/dev/ttyUSB0",
+                      help="Specify serial device (default %default)")
+    parser.add_option("--hwtest", dest="hwtest", default=False,
+                      action="store_true", help="Run hardware test")
 
-## data = sample.frames
-## pageno = 0
-## while data:
-##     page = data[:FLASH_PAGE_SIZE]
-##     data = data[FLASH_PAGE_SIZE:]
-##     print 'writting page', pageno
-##     loader.write_page(pageno, page)
-##     pageno += 1
+    (options, args) = parser.parse_args()
 
+    loader = Loader(options.device)
+    version = loader.version()
 
+    print 'DISCONNECT device version %r found' % version
+
+    if options.hwtest:
+        test_hardware(loader)
