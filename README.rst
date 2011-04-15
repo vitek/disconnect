@@ -7,6 +7,7 @@ Pinout
 ------
  * ring: PG1 (~30Khz)
  * hang: PB5
+ * phone: PB6
  * debug led: PE2
  * boot_mode: PB4
  * numeric (nc): PD3
