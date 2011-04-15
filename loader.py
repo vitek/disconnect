@@ -87,13 +87,7 @@ class WavFile(object):
         if fp.getsampwidth() != 1:
             raise SampleError, "only 8-bit samples are supported"
 
-        self.frames = ''
-
-        while True:
-            data = fp.readframes(1024)
-            if not data:
-                break
-            self.frames += data
+        self.frames = fp.readframes(fp.getnframes())
 
 
 def test_hardware(loader):
