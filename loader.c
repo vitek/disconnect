@@ -287,7 +287,9 @@ static int uart_loader_handle(const char *cmd)
     } else if (!strcmp(cmd, "test")) {
         uart_loader_test();
     } else {
-        uart0_puts("ERROR: unknown command\r\n");
+        uart0_puts("ERROR: unknown command: '");
+        uart0_puts(cmd);
+        uart0_puts("'\r\n");
     }
 
     return 0;
