@@ -1,24 +1,25 @@
 import os
+import sys
 import time
 
 import serial
 import wave
 
 from crc16 import crc16
-
-
-FLASH_PAGE_SIZE = 1056
-FLASH_PAGES = 8192
+from firmware import FLASH_PAGE_SIZE, FLASH_PAGES
 
 
 class LoaderError(Exception):
     pass
 
+
 class LoaderSignatureError(LoaderError):
     pass
 
+
 class LoaderCRCError(LoaderError):
     pass
+
 
 class Loader(object):
     def __init__(self, device):
@@ -75,21 +76,6 @@ class Loader(object):
             raise LoaderError, "got %r instead of OK" % reply
 
 
-class SampleError(Exception):
-    pass
-
-
-class WavFile(object):
-    def __init__(self, fname):
-        fp = wave.open(fname, 'r')
-        if fp.getnchannels() != 1:
-            raise SampleError, "only mono samples are supported"
-        if fp.getsampwidth() != 1:
-            raise SampleError, "only 8-bit samples are supported"
-
-        self.frames = fp.readframes(fp.getnframes())
-
-
 def test_hardware(loader):
     print 'Writing to flash'
     data = os.urandom(FLASH_PAGE_SIZE)
@@ -118,6 +104,17 @@ def test_hardware(loader):
     loader.wait(8)
 
 
+def flash_data(loader, data, page_no=0):
+    while data:
+        page = data[:FLASH_PAGE_SIZE]
+        data = data[FLASH_PAGE_SIZE:]
+        loader.write_page(page_no, page)
+        page_no += 1
+        sys.stdout.write('.')
+        sys.stdout.flush()
+    sys.stdout.write('\n')
+
+
 if __name__ == "__main__":
     from optparse import OptionParser
 
@@ -127,6 +124,10 @@ if __name__ == "__main__":
                       help="Specify serial device (default %default)")
     parser.add_option("--hwtest", dest="hwtest", default=False,
                       action="store_true", help="Run hardware test")
+    parser.add_option("--go", dest="go", default=False,
+                      action="store_true", help="Enter normal operation mode")
+    parser.add_option("-l", "--load", dest="firmware",
+                      help="Flash firmware file")
 
     (options, args) = parser.parse_args()
 
@@ -137,3 +138,9 @@ if __name__ == "__main__":
 
     if options.hwtest:
         test_hardware(loader)
+    elif options.go:
+        loader.custom('go')
+    elif options.firmware:
+        with open(options.firmware, 'rb') as fp:
+            data = fp.read()
+        flash_data(loader, data)
