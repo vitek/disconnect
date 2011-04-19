@@ -100,11 +100,19 @@ static int phone_read_header()
     return 0;
 }
 
+static inline char phone_hang()
+{
+    if (PINB & (1 << PB5))
+        return 1;
+    return 0;
+}
 
 static inline int phone_play_some(int count)
 {
     while (count--) {
         PORTC = at45_spi_read();
+        if (phone_hang())
+            return -1;
     }
 
     return 0;
