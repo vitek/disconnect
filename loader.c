@@ -156,9 +156,6 @@ static void uart_loader_test()
     unsigned int page;
     unsigned int pos;
 
-//    SPSR |= 1 << SPI2X;
-//    SPCR = (SPCR & ~(3 << SPR0)) | (1 << SPR0);
-
     at45_read_start(0);
 
     cli();
@@ -170,11 +167,13 @@ static void uart_loader_test()
     }
     sei();
 
-
     SPSR &= ~(1 << SPI2X);
     SPCR = (SPCR & ~(3 << SPR0));
 
     at45_read_stop();
+
+
+    uart0_puts("DONE\r\n");
 }
 
 #define TIMER_RING_TIMEOUT 2
