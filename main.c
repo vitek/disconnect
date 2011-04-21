@@ -104,6 +104,7 @@ static inline char phone_hang()
 {
     if (PINB & (1 << PB5))
         return 1;
+
     return 0;
 }
 
@@ -128,7 +129,10 @@ static int phone_play_sample(sample_t *sample)
     phone_play_some(sample->odd);
 
     for (i = 0; i < sample->pages; i++) {
-        phone_play_some(AT45_PAGE_SIZE);
+        if (phone_play_some(AT45_PAGE_SIZE)) {
+            retval = -1;
+            break;
+        }
     }
     at45_read_stop();
     sei();
@@ -178,6 +182,9 @@ int main()
         int i;
 
         for (i = 0; i < samples_count; i++) {
+            while (PINB & (1 << PB6))
+                ;
+
             phone_play_sample(&samples[i]);
         }
     }
