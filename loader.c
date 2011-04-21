@@ -264,6 +264,31 @@ static void uart_loader_saw()
     uart0_puts("ok\r\n");
 }
 
+static void uart_loader_test_mic()
+{
+    int led = 0;
+    unsigned char state;
+
+    timer_start_oneshot(TIMER_RING_TIMEOUT, HZ * 10);
+
+    while (!timer_read_event(TIMER_RING_TIMEOUT)) {
+        unsigned char c = PINB & (1 << PB6);
+
+        if (c != state) {
+            state = c;
+
+            if (c) {
+                if (PORTE & (1 << PE2))
+                    PORTE &= ~(1 << PE2);
+                else
+                    PORTE |= 1 << PE2;
+            }
+        }
+    }
+
+    uart0_puts("ok\r\n");
+}
+
 static int uart_loader_handle(const char *cmd)
 {
     if (!strcmp(cmd, "hi")) {
@@ -285,6 +310,8 @@ static int uart_loader_handle(const char *cmd)
         uart_loader_saw();
     } else if (!strcmp(cmd, "test")) {
         uart_loader_test();
+    } else if (!strcmp(cmd, "mic")) {
+        uart_loader_test_mic();
     } else {
         uart0_puts("ERROR: unknown command: '");
         uart0_puts(cmd);
