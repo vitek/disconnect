@@ -16,6 +16,12 @@ all: disconnect.hex
 disconnect.elf: timer.o at45.o uart.o loader.o main.o crc16.o
 	$(CC) $(LDFLAGS) $^ -Wl,-Map=$@.map -o $@
 
+
+.PHONY: fw.bin
+fw.bin: fw.in
+	python firmware.py fw.in > fw.bin || (rm -f $@; false)
+
+
 clean:
 	rm -f *.hex *.map *.elf *.bin *.bak *~ *.o *.s *.e
 	rm -f $(SAMPLES)

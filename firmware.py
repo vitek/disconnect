@@ -35,7 +35,7 @@ class WavFile(object):
 
 
 class Sample:
-    def __init__(self, fname, role, weight):
+    def __init__(self, fname, role, weight, repeat):
         self.wave = WavFile(fname)
         self.role = role
         self.weight = weight
@@ -55,15 +55,43 @@ class Sample:
                            pages, odd)
 
 ROLES_MAP = {
-    'free': 0,
-    'music': 1,
+    'incoming': 0,    # Incoming call
+    'busy':     1,    # Operators busy message
+    'music':    2,    # Music loop
 }
 
+class FirmwareError(Exception):
+    pass
+
+# <wav-file> <role> <weight> [repeat]
+def parse_fwin(fname):
+    firmware = []
+    with open(fname, 'rt') as fp:
+        for lineno, line in enumerate(fp.readlines(), 1):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split()
+            if len(parts) not in range(3, 5):
+                raise FirmwareError, "%d: wrong number of arguments" % lineno
+            fname = parts[0]
+            role = ROLES_MAP[parts[1]]
+            weight = int(parts[2])
+            if len(parts) >= 4:
+                repeat = int(parts[3])
+            else:
+                repeat = 1
+            firmware.append(Sample(fname, role, weight, repeat))
+        return firmware
 
 if __name__ == "__main__":
     output = sys.stdout
 
-    samples = [Sample('output8.wav', 0, 10)]
+    if sys.argv < 2:
+        print >> sys.stderr, 'Syntax: %s <fw.in>' % sys.argv[0]
+        sys.exit(1)
+
+    samples = parse_fwin(sys.argv[1])
 
     descr = ''
     pageno = 1
