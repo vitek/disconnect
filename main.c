@@ -2,12 +2,22 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 
+#include <stdio.h> /* NULL */
+#include <stdlib.h> /* rand */
+
 #include "timer.h"
 #include "uart.h"
 #include "at45.h"
 #include "crc16.h"
 #include "loader.h"
 #include "power.h"
+
+
+#define TIMER_MISC 0
+
+#define BUSY_TIMES    100
+#define BEEP_VOLUME   20
+#define MAX_SAMPLES 16
 
 
 typedef struct {
@@ -19,13 +29,28 @@ typedef struct {
 typedef struct {
     unsigned char role;
     unsigned char weight;
+    unsigned char repeat;
     uint16_t page;
     uint16_t pages;
     uint16_t odd;
-} sample_t;
+} __attribute__((packed)) sample_t;
 
 
-#define MAX_SAMPLES 16
+enum Role {
+    ROLE_INCOMING = 0,
+    ROLE_BUSY,
+    ROLE_MUSIC,
+    ROLE_MAX,
+} ;
+
+typedef struct {
+    sample_t *samples[MAX_SAMPLES];
+    unsigned int count;
+    unsigned int weight;
+} role_set_t;
+
+static role_set_t roles[ROLE_MAX];
+
 
 static sample_t samples[MAX_SAMPLES];
 static unsigned char samples_count;
@@ -71,16 +96,13 @@ static int phone_read_header()
     }
 
     if (header.signature[0] != 'v'  || header.signature[1] != '1' ||
-        header.signature[2] != '\r' || header.signature[3] != '\n') {
-        return -1;
-    }
+        header.signature[2] != '\r' || header.signature[3] != '\n')
+        goto error;
 
-    if (header.samples > MAX_SAMPLES) {
-        return -1;
-    }
+    if (header.samples > MAX_SAMPLES)
+        goto error;
 
     samples_count = header.samples;
-
 
     ptr = (uint8_t *) &samples;
     len = samples_count * sizeof(sample_t);
@@ -90,14 +112,31 @@ static int phone_read_header()
         crc = crc16_byte(crc, c);
         ptr[i] = c;
     }
+    at45_read_stop();
 
     if (crc != header.crc16) {
         return -1;
     }
 
 
-    at45_read_stop();
+    for (i = 0; i < samples_count; i++) {
+        sample_t *sample = &samples[i];
+        role_t *role;
+
+        if (!sample->weight)
+            sample->weight = 1;
+        if (sample->role >= ROLE_MAX)
+            continue; /* die here? */
+
+        role = &roles[samples->role];
+        role->samples[role->count++] = sample;
+        role->weight += sample->weight;
+    }
+
     return 0;
+error:
+    at45_read_stop();
+    return -1;
 }
 
 static inline char phone_hang()
@@ -139,6 +178,88 @@ static int phone_play_sample(sample_t *sample)
 
     return retval;
 }
+
+
+int phone_busy()
+{
+    int i, j;
+
+    for (i = 0; i < BUSY_TIMES; i++) {
+        if (PINB & (1 << PB5))
+            break;
+
+        for (j = 0; j < 100; j++) {
+            PORTC = 0x80 - BEEP_VOLUME;
+            _delay_ms(1);
+            PORTC = 0x80;
+            _delay_ms(1);
+            PORTC = 0x80 + BEEP_VOLUME;
+            _delay_ms(1);
+            PORTC = 0x80;
+            _delay_ms(1);
+        }
+
+        _delay_ms(200);
+    }
+
+    return 0;
+}
+
+
+enum {
+    RING_TIMEOUT,
+    RING_ACCEPT,
+} ;
+
+int phone_ring()
+{
+    int retval = 0;
+    int i;
+
+    for (i = 0; i < 2; i++) {
+        timer_start_oneshot(TIMER_MISC, HZ + HZ / 2);
+        while (!timer_read_event(TIMER_MISC)) {
+            PORTG |= (1 << PG1);
+            _delay_us(30);
+            PORTG &= ~(1 << PG1);
+            _delay_us(30);
+        }
+
+        timer_start_oneshot(TIMER_MISC, HZ);
+        while (!timer_read_event(TIMER_MISC))
+            ;
+    }
+
+    PORTG |= (1 << PG1);
+    return retval;
+}
+
+static
+sample_t *choose_sample(enum Role role)
+{
+    role_set_t *set;
+    unsigned int r;
+    unsigned int i;
+
+    if (role >= ROLE_MAX)
+        return NULL;
+
+    set = &roles[role];
+
+    if (set->count == 0)
+        return NULL;
+
+    r = rand() % set->weight;
+
+    for (i = 0; i < set->count; i++) {
+        if (set->samples[i]->weight > r)
+            return set->samples[i];
+        r -= set->samples[i]->weight;
+    }
+
+    return NULL;
+}
+
 
 int main()
 {
