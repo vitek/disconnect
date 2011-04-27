@@ -36,4 +36,5 @@ clean:
 	$(CC) -E $(CFLAGS) -S -g0 $^ -o $@
 
 %.8wav: %.wav
-	sox $< -c 1 --rate=12500 -1 $@
+	sox $< --rate=20833 -c1 -1 -V .tmp.wav || (rm -f .tmp.wav; false) && cp .tmp.wav $@
+
