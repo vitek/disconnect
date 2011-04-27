@@ -35,10 +35,11 @@ class WavFile(object):
 
 
 class Sample:
-    def __init__(self, fname, role, weight, repeat):
+    def __init__(self, fname, role, weight=1, repeat=1):
         self.wave = WavFile(fname)
         self.role = role
         self.weight = weight
+        self.repeat = repeat
         self.page = -1
 
 
@@ -49,8 +50,10 @@ class Sample:
     def tobin(self):
         page = 0
         pages, odd = divmod(len(self.wave), FLASH_PAGE_SIZE)
-        return struct.pack('<BBHHH',
-                           self.role, self.weight,
+        return struct.pack('<BBBHHH',
+                           self.role,
+                           self.weight,
+                           self.repeat,
                            self.page,
                            pages, odd)
 
