@@ -12,12 +12,43 @@
 #include "loader.h"
 #include "power.h"
 
+#define DEBUG
+
+#ifdef DEBUG
+static int __dbg_putchar(char c, FILE *stream)
+{
+    static char p = 0;
+    (void) stream;
+    if (c == '\n' && p != '\r')
+        uart0_putc('\r');
+    p = c;
+    uart0_putc(c);
+    return 0;
+}
+
+static FILE __dbg_fp = FDEV_SETUP_STREAM(
+    __dbg_putchar, NULL, _FDEV_SETUP_WRITE);
+
+#define dbg_printf(fmt, args...) fprintf(&__dbg_fp, fmt, ## args)
+#else
+#define dbg_printf(fmt, ...) do {} while (0)
+#endif
 
 #define TIMER_MISC 0
-
-#define BUSY_TIMES    100
-#define BEEP_VOLUME   20
 #define MAX_SAMPLES 16
+
+
+/* Settings */
+#define BUSY_TIMES        100
+#define BEEP_VOLUME       20
+#define BEEP_VOLUME_READY 40
+
+#define CALL_TIMEOUT_MIN   (0 * 60 * HZ)
+#define CALL_TIMEOUT_MAX   (1 * 60 * HZ)
+#define CALL_RING_MIN      10
+#define CALL_RING_MAX      40
+
+#define USER_WAIT_TIMEOUT  (2 * HZ)
 
 
 typedef struct {
@@ -40,6 +71,7 @@ enum Role {
     ROLE_INCOMING = 0,
     ROLE_BUSY,
     ROLE_MUSIC,
+    ROLE_NOISE,
     ROLE_MAX,
 } ;
 
@@ -52,7 +84,7 @@ typedef struct {
 static role_set_t roles[ROLE_MAX];
 
 
-static sample_t samples[MAX_SAMPLES];
+static sample_t all_samples[MAX_SAMPLES];
 static unsigned char samples_count;
 
 
@@ -80,6 +112,12 @@ static void panic(int n)
 }
 
 
+static inline int
+random_range(int left, int right)
+{
+    return rand() % (right - left) + left;
+}
+
 static int phone_read_header()
 {
     header_t header;
@@ -104,7 +142,7 @@ static int phone_read_header()
 
     samples_count = header.samples;
 
-    ptr = (uint8_t *) &samples;
+    ptr = (uint8_t *) &all_samples;
     len = samples_count * sizeof(sample_t);
 
     for (i = 0; i < len; i++) {
@@ -120,15 +158,15 @@ static int phone_read_header()
 
 
     for (i = 0; i < samples_count; i++) {
-        sample_t *sample = &samples[i];
-        role_t *role;
+        sample_t *sample = &all_samples[i];
+        role_set_t *role;
 
         if (!sample->weight)
             sample->weight = 1;
         if (sample->role >= ROLE_MAX)
             continue; /* die here? */
 
-        role = &roles[samples->role];
+        role = &roles[sample->role];
         role->samples[role->count++] = sample;
         role->weight += sample->weight;
     }
@@ -143,7 +181,6 @@ static inline char phone_hang()
 {
     if (PINB & (1 << PB5))
         return 1;
-
     return 0;
 }
 
@@ -199,7 +236,7 @@ int phone_busy()
             _delay_ms(1);
         }
 
-        _delay_ms(200);
+        _delay_ms(250);
     }
 
     return 0;
@@ -211,14 +248,14 @@ enum {
     RING_ACCEPT,
 } ;
 
-int phone_ring()
+int phone_ring(int count)
 {
-    int retval = 0;
     int i;
 
-    for (i = 0; i < 2; i++) {
+    for (i = 0; i < count && phone_hang(); i++) {
         timer_start_oneshot(TIMER_MISC, HZ + HZ / 2);
-        while (!timer_read_event(TIMER_MISC)) {
+        while (!timer_read_event(TIMER_MISC) && phone_hang()) {
+            /* ~30Khz */
             PORTG |= (1 << PG1);
             _delay_us(30);
             PORTG &= ~(1 << PG1);
@@ -226,12 +263,12 @@ int phone_ring()
         }
 
         timer_start_oneshot(TIMER_MISC, HZ);
-        while (!timer_read_event(TIMER_MISC))
+        while (!timer_read_event(TIMER_MISC) && phone_hang())
             ;
     }
 
     PORTG |= (1 << PG1);
-    return retval;
+    return phone_hang();
 }
 
 static
@@ -261,8 +298,149 @@ sample_t *choose_sample(enum Role role)
 }
 
 
+static int phone_call(int count)
+{
+    while (count--) {
+        int i;
+
+        timer_start_oneshot(TIMER_MISC, HZ / 4);
+        while (!timer_read_event(TIMER_MISC)) {
+            if (phone_hang())
+                goto hang;
+        }
+
+        for (i = 0; i < 100; i++) {
+            PORTC = 0x80 - BEEP_VOLUME_READY;
+            _delay_us(500);
+            PORTC = 0x80;
+            _delay_us(500);
+            PORTC = 0x80 + BEEP_VOLUME_READY;
+            _delay_us(500);
+            PORTC = 0x80;
+            _delay_us(500);
+        }
+    }
+
+    return 0;
+hang:
+    timer_stop(TIMER_MISC);
+    return -1;
+}
+
+
+static
+int phone_action_busy()
+{
+    sample_t *sample_music;
+    sample_t *sample_message;
+    int j, i;
+
+    sample_message = choose_sample(ROLE_BUSY);
+    sample_music = choose_sample(ROLE_MUSIC);
+
+    if (!sample_message || !sample_music)
+        return -1;
+
+    timer_start_oneshot(TIMER_MISC, HZ / 2);
+    while (!timer_read_event(TIMER_MISC)) {
+        if (phone_hang()) {
+            timer_stop(TIMER_MISC);
+            return 0;
+        }
+    }
+
+    if (phone_call(4))
+        return 0;
+
+    for (j = 0; j < 10; j++) {
+        if (phone_play_sample(sample_message))
+            return 0;
+
+        for (i = 0; i < sample_music->repeat; i++) {
+            if (phone_play_sample(sample_music))
+                return 0;
+        }
+    }
+
+    return phone_busy();
+}
+
+static void prnd_init()
+{
+    static int initialized = 0;
+
+    if (!initialized) {
+        srand(ticks);
+        initialized = 1;
+    }
+}
+
+/* Wait until user action or timeout */
+static
+int phone_wait_user(int timeout)
+{
+    sample_t *sample = choose_sample(ROLE_NOISE);
+    unsigned long i, length;
+    unsigned char old = PINB & (1 << PB6);
+    int changes = 0;
+
+    if (!sample)
+        return 0;
+
+    length = sample->odd + sample->pages * AT45_PAGE_SIZE;
+    timer_start_oneshot(TIMER_MISC, timeout);
+
+    while (1) {
+        at45_read_start(sample->page);
+        for (i = 0; i < length; i++) {
+            if (timer_read_event(TIMER_MISC) || phone_hang() || changes > 40)
+                goto done;
+
+            PORTC = at45_spi_read();
+            if (old ^ (PINB & (1 << PB6))) {
+                old = PINB & (1 << PB6);
+                changes++;
+            }
+        }
+        at45_read_stop();
+    }
+
+done:
+    timer_stop(TIMER_MISC);
+    at45_read_stop();
+    return phone_hang();
+}
+
+
+static
+int phone_action_message()
+{
+    sample_t *sample;
+
+    sample = choose_sample(ROLE_INCOMING);
+
+    if (!sample)
+        return -1;
+
+    if (phone_ring (random_range(CALL_RING_MIN,
+                                 CALL_RING_MAX)))
+        return -1;
+    prnd_init();
+
+    if (phone_wait_user(USER_WAIT_TIMEOUT))
+        return -1;
+
+    if (phone_play_sample(sample))
+        return -1;
+
+    return phone_busy();
+}
+
+
 int main()
 {
+    unsigned short old_secs = 0;
+
     DDRC = 0xff; /* speaker */
     //DDRA = (1 << PA3);
     //DDRB = (1 << PB6);
@@ -284,6 +462,11 @@ int main()
         cli();
     }
 
+#ifdef DEBUG
+    uart0_init(UART_BAUD(57600));
+    dbg_printf("running phone in debug mode...\r\n");
+#endif
+
     timer_init();
     timer_enable();
 
@@ -299,16 +482,44 @@ int main()
     }
 
     sei();
+
+    /* main loop */
     while (1) {
-        int i;
+        int timeout;
 
-        for (i = 0; i < samples_count; i++) {
-            while (PINB & (1 << PB6))
-                ;
+        old_secs = seconds;
+        timer_stop_all();
+        main_power_off();
 
-            phone_play_sample(&samples[i]);
+        while (!phone_hang()) {
+            power_down();
+        }
+
+        timeout = random_range(CALL_TIMEOUT_MIN,
+                               CALL_TIMEOUT_MAX);
+        timer_start_oneshot(TIMER_MISC, timeout);
+
+        dbg_printf("Sleeping for at least %d ticks\n", timeout);
+
+        while (phone_hang() &&
+               !timer_read_event(TIMER_MISC)) {
+            power_down();
+        }
+
+        main_power_on();
+        timer_stop_all();
+        _delay_ms(1); /* let at45 wakeup */
+
+        if (phone_hang()) {
+            dbg_printf("Incoming call\n");
+            phone_action_message();
+        } else {
+            if (seconds == old_secs){
+                phone_busy();
+            } else {
+                dbg_printf("Service busy message\n");
+                phone_action_busy();
+            }
         }
     }
-
-    return 0;
 }
