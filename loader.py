@@ -126,6 +126,8 @@ if __name__ == "__main__":
                       action="store_true", help="Run hardware test")
     parser.add_option("--go", dest="go", default=False,
                       action="store_true", help="Enter normal operation mode")
+    parser.add_option("--monitor", dest="monitor", default=False,
+                      action="store_true", help="Enter monitor mode")
     parser.add_option("-l", "--load", dest="firmware",
                       help="Flash firmware file")
 
@@ -144,3 +146,9 @@ if __name__ == "__main__":
         with open(options.firmware, 'rb') as fp:
             data = fp.read()
         flash_data(loader, data)
+
+    if options.monitor:
+        loader.fp.setTimeout(None)
+        while True:
+            reply = loader.fp.readline()
+            sys.stdout.write(reply)
