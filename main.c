@@ -43,10 +43,10 @@ static FILE __dbg_fp = FDEV_SETUP_STREAM(
 #define BEEP_VOLUME       20
 #define BEEP_VOLUME_READY 40
 
-#define CALL_TIMEOUT_MIN   (0 * 60 * HZ)
-#define CALL_TIMEOUT_MAX   (1 * 60 * HZ)
+#define CALL_TIMEOUT_MIN   (3 * 60 * HZ)
+#define CALL_TIMEOUT_MAX   (6 * 60 * HZ)
 #define CALL_RING_MIN      10
-#define CALL_RING_MAX      40
+#define CALL_RING_MAX      30
 
 #define USER_WAIT_TIMEOUT  (2 * HZ)
 
