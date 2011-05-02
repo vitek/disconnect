@@ -61,6 +61,7 @@ ROLES_MAP = {
     'incoming': 0,    # Incoming call
     'busy':     1,    # Operators busy message
     'music':    2,    # Music loop
+    'noise':    3,    # Noise stub
 }
 
 class FirmwareError(Exception):
