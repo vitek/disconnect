@@ -4,12 +4,14 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 
+#include "irq.h"
 
 static inline
 void power_down()
 {
-    cli();
+    unsigned char flags;
 
+    local_irq_save(flags);
     /* switch off leds */
     PORTE |= (1 << PE2);
     PORTG |= (1 << PG1);
@@ -18,7 +20,8 @@ void power_down()
     PORTE |= (1 << PE7);
 
     set_sleep_mode(SLEEP_MODE_IDLE);
-    sei();
+    local_irq_restore(flags);
+
     sleep_mode();
 }
 
